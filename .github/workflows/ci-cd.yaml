@@ -1,0 +1,129 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+
+      - name: Build Go code in catalog
+        run: |
+          cd catalog
+          go build ./...
+
+      - name: Test Go code in catalog
+        run: |
+          cd catalog
+          go test ./...
+
+      # # Setup Java for frontend (ui)
+      # - name: Set up JDK
+      #   uses: actions/setup-java@v3
+      #   with:
+      #     distribution: "temurin"
+      #     java-version: "17"   # use the JDK version your project requires
+
+      # - name: Build & Test frontend
+      #   run: |
+      #     ./mvnw clean test   # if Maven wrapper exists
+      #   working-directory: ui
+      #   # If your project uses Gradle instead:
+      #   # run: ./gradlew test
+
+  build:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v3
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Build & push backend (catalog)
+      - name: Build & Push catalog image
+        run: |
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/catalog:${{ github.sha }} ./catalog
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/catalog:${{ github.sha }}
+
+      # Build & push frontend (ui)
+      - name: Build & Push ui image
+        run: |
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/ui:${{ github.sha }} ./ui
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/ui:${{ github.sha }}
+          
+  terraform:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - name: Terraform Init
+        run: terraform init
+  
+      - name: Terraform Validate
+        run: terraform validate
+      
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
+        continue-on-error: true
+        
+  deploy:
+    runs-on: ubuntu-latest
+    needs: terraform
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v3
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: v1.29.0
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: v3.12.0
+
+      - name: Deploy Helm Charts
+        run: |
+          aws eks update-kubeconfig --region us-east-1 --name dev-eks-cluster
+
+          # Deploy backend
+          helm upgrade --install catalog ./helm/catalog \
+            --set image.repository=${{ secrets.DOCKERHUB_USERNAME }}/catalog \
+            --set image.tag=${{ github.sha }}
+
+          # Deploy frontend
+          helm upgrade --install ui ./helm/ui \
+            --set image.repository=${{ secrets.DOCKERHUB_USERNAME }}/ui \
+            --set image.tag=${{ github.sha }}
