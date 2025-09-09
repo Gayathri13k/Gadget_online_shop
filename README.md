@@ -13,8 +13,7 @@ Terraform Modules: VPC, IAM, EKS cluster.
 GitHub Actions: Build, Test, Deploy pipeline.
 Kubernetes: Application deployed via Helm.
 Monitoring: Prometheus scraping metrics + Grafana dashboards as code.
-
----![alt text](<architecure diagram.png>)
+![alt text](Architecture-Daigram.png)
 
 ## 🏗️ 1. Terraform Expansion
 - Infrastructure is modularized.
