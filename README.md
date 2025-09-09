@@ -2,6 +2,10 @@
 
 This project demonstrates provisioning AWS infrastructure using **Terraform**, deploying workloads with **Helm**, automating deployments with **GitHub Actions**, and implementing **Monitoring** with **Prometheus & Grafana**.
 
+## Applicaton Running ScreenShots
+![alt text](<Screenshot 2025-09-09 112538.png>)
+![alt text](<Screenshot 2025-09-09 112510.png>)
+
 
 ## Architecture Diagram 
 Components:
@@ -43,4 +47,9 @@ metadata:
     prometheus.io/port: "{{ .Values.service.port }}"
     prometheus.io/path: "{{ .Values.serviceMonitor.path }}"
 
-
+## Dashboard Screenshots
+![alt text](<Screenshot 2025-09-09 100904.png>)
+![alt text](<Screenshot 2025-09-09 100837.png>)
+![alt text](<Screenshot 2025-09-09 101246.png>)
+![alt text](<Screenshot 2025-09-09 104817.png>)
+![alt text](<Screenshot 2025-09-09 105348.png>)
